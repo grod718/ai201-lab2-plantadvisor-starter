@@ -7,7 +7,6 @@ from agent import run_agent
 # Load plant list for the sidebar
 with open(os.path.join(DATA_PATH, "plants.json"), encoding="utf-8") as f:
     _plants = json.load(f)
-
 _plant_names = sorted(p["display_name"] for p in _plants.values())
 
 EXAMPLE_QUESTIONS = [
@@ -21,30 +20,21 @@ EXAMPLE_QUESTIONS = [
     "My calathea has brown edges. Is it the humidity?",
     "What are some good low-light plants for my apartment?",
     "Why does my boston fern keep losing fronds?",
-    "How do I care for my string of pearls?",   # not in database — tests graceful degradation
+    "How do I care for my string of pearls?",
 ]
-
 
 def chat(message: str, history: list) -> str:
     """Pass the user message and conversation history to the agent."""
     return run_agent(message, history)
 
-
-# ──────────────────────────────────────────────
-# UI
-# ──────────────────────────────────────────────
-
 with gr.Blocks(title="Plant Advisor") as demo:
-
     gr.Markdown(
         """
 # 🌿 Plant Advisor
 *Ask me anything about caring for your houseplants.*
 """
     )
-
     with gr.Row():
-        # Sidebar
         with gr.Column(scale=1, min_width=220):
             gr.Markdown("### 🪴 Plants in My Database")
             gr.Markdown(
@@ -57,18 +47,14 @@ with gr.Blocks(title="Plant Advisor") as demo:
                 "scientific name, or nickname (e.g., *devil's ivy*, "
                 "*mother-in-law's tongue*, *swiss cheese plant*)."
             )
-
-        # Chat
         with gr.Column(scale=3):
-            chatbot = gr.ChatInterface(
+            gr.ChatInterface(
                 fn=chat,
-                type="messages",
                 examples=EXAMPLE_QUESTIONS,
                 chatbot=gr.Chatbot(
                     height=520,
                     placeholder="<em>Ask me about your plants...</em>",
                     show_label=False,
-                    type="messages",
                 ),
                 textbox=gr.Textbox(
                     placeholder="e.g. How often should I water my monstera?",
