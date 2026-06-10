@@ -68,7 +68,7 @@ def dispatch_tool(tool_name: str, tool_args: dict) -> str:
     if tool_name == "lookup_plant":
         result = lookup_plant(tool_args["plant_name"])
     elif tool_name == "get_seasonal_conditions":
-        result = get_seasonal_conditions(tool_args.get("season"))
+        result = get_seasonal_conditions((tool_args or {}).get("season"))
     else:
         result = {"error": f"Unknown tool: {tool_name}"}
     print(f"  ← Result: {json.dumps(result)[:120]}{'...' if len(json.dumps(result)) > 120 else ''}")
@@ -78,22 +78,55 @@ def dispatch_tool(tool_name: str, tool_args: dict) -> str:
 def run_agent(user_message: str, history: list) -> str:
     """Run the plant care agent for one user turn and return its response."""
 
-    # 1. Build messages list: system prompt + history + new user message
+    # 1. Build messages list: system prompt + user message
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-
-    # Skip history to avoid tool call message conflicts with Groq API
-    # Each turn is treated as a fresh query
-
     messages.append({"role": "user", "content": user_message})
 
     # 2. Agent loop
     for _ in range(MAX_TOOL_ROUNDS):
-        response = _client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=messages,
-            tools=TOOL_DEFINITIONS,
-            tool_choice="auto",
-        )
+        try:
+            response = _client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=messages,
+                tools=TOOL_DEFINITIONS,
+                tool_choice="auto",
+            )
+        except Exception as e:
+            return f"I encountered an error processing your request. Please try rephrasing your question."
+
+        assistant_message = response.choices[0].message
+
+        # 3. No tool calls — final answer
+        if not assistant_message.tool_calls:
+            return assistant_message.content
+
+        # 4. Append assistant message BEFORE tool results
+        messages.append(assistant_message)
+
+        # 5. Execute each tool call and append results
+        for tool_call in assistant_message.tool_calls:
+            tool_name = tool_call.function.name
+            tool_args = json.loads(tool_call.function.arguments)
+            tool_result = dispatch_tool(tool_name, tool_args)
+
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": tool_result,
+            })
+
+    # MAX_TOOL_ROUNDS reached
+# 2. Agent loop
+    for _ in range(MAX_TOOL_ROUNDS):
+        try:
+            response = _client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=messages,
+                tools=TOOL_DEFINITIONS,
+                tool_choice="auto",
+            )
+        except Exception as e:
+            return f"I encountered an error processing your request. Please try rephrasing your question."
 
         assistant_message = response.choices[0].message
 
